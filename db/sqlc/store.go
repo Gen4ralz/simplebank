@@ -39,12 +39,12 @@ func (store *Store) execTx(ctx context.Context, fn func(*Queries) error) error {
 	return tx.Commit()
 }
 
-// TransferTxParams contains the input parameters of the transfer transaction
-type TransferTxParams struct {
-	FromAccountID	int64	`json:"form_account_id"`
-	ToAccountID		int64	`json:"to_account_id"`
-	Amount			int64	`json:"amount"`
-}
+// // TransferTxParams contains the input parameters of the transfer transaction
+// type TransferTxParams struct {
+// 	FromAccountID	int64	`json:"form_account_id"`
+// 	ToAccountID		int64	`json:"to_account_id"`
+// 	Amount			int64	`json:"amount"`
+// }
 
 // TransferTxResult is the result of the transfer transaction
 type TransferTxResult struct {
@@ -55,6 +55,8 @@ type TransferTxResult struct {
 	ToEntry		Entry		`json:"to_entry"`		// The entry of the to account which records that money is moving in
 }
 
+var txKey = struct{}{}
+
 // TransferTx performs a money transfer from one account to the other
 // It creates a transfer record, add account entries, and update account's balance within a single database transaction
 func (store *Store) TransferTx(ctx context.Context, arg CreateTransferParams) (TransferTxResult, error) {
@@ -64,6 +66,9 @@ func (store *Store) TransferTx(ctx context.Context, arg CreateTransferParams) (T
 	err := store.execTx(ctx, func(q *Queries) error {
 		var err error
 
+		txName := ctx.Value(txKey)
+
+		fmt.Println(txName, "create transfer")
 		result.Transfer, err = q.CreateTransfer(ctx, CreateTransferParams{
 			FromAccountID: arg.FromAccountID,
 			ToAccountID: arg.ToAccountID,
@@ -75,6 +80,7 @@ func (store *Store) TransferTx(ctx context.Context, arg CreateTransferParams) (T
 		}
 
 		// add account entries
+		fmt.Println(txName, "create entry 1")
 		result.FromEntry, err = q.CreateEntry(ctx, CreateEntryParams{
 			AccountID: arg.FromAccountID,
 			Amount: -arg.Amount,
@@ -85,6 +91,7 @@ func (store *Store) TransferTx(ctx context.Context, arg CreateTransferParams) (T
 		}
 
 		// add account entries
+		fmt.Println(txName, "create entry 2")
 		result.ToEntry, err = q.CreateEntry(ctx, CreateEntryParams{
 			AccountID: arg.ToAccountID,
 			Amount: arg.Amount,
@@ -94,10 +101,38 @@ func (store *Store) TransferTx(ctx context.Context, arg CreateTransferParams) (T
 			// transaction will be rolled back
 		}
 
-		// TODO: update account's balance
-
-		return nil
+		// TODO: update account's balance | get account  -> update its balance
+		// move money out of account1
+		if arg.FromAccountID < arg.ToAccountID {
+			result.FromAccount, result.ToAccount, err = addMoney(ctx, q, arg.FromAccountID, -arg.Amount, arg.ToAccountID, arg.Amount)
+        } else {
+            result.ToAccount, result.FromAccount, err = addMoney(ctx, q, arg.ToAccountID, arg.Amount, arg.FromAccountID, -arg.Amount)
+		}
+		return err
 	})
 
 	return result, err
+}
+
+func addMoney(
+    ctx context.Context,
+    q *Queries,
+    accountID1 int64,
+    amount1 int64,
+    accountID2 int64,
+    amount2 int64,
+) (account1 Account, account2 Account, err error) {
+    account1, err = q.AddAccountBalance(ctx, AddAccountBalanceParams{
+        ID:     accountID1,
+        Amount: amount1,
+    })
+    if err != nil {
+        return
+    }
+
+    account2, err = q.AddAccountBalance(ctx, AddAccountBalanceParams{
+        ID:     accountID2,
+        Amount: amount2,
+    })
+    return
 }

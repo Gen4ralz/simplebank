@@ -14,8 +14,10 @@ func createRandomAccount(t *testing.T) Account {
 	// require database connection to talk to database -> set main_test.go
 
 	//after set main_test.go
+	user := createRandomUser(t)
+
 	arg := CreateAccountParams{
-		Owner: utils.RandomOwner(),
+		Owner: user.Username,
 		Balance: utils.RandomMoney(),
 		Currency: utils.RandomCurrency(),
 	}

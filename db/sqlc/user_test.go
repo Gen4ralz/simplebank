@@ -11,11 +11,13 @@ import (
 
 func createRandomUser(t *testing.T) User {
 	// require database connection to talk to database -> set main_test.go
+	hashedPassword, err := utils.HashPassword(utils.RandomString(6))
+	require.NoError(t, err)
 
 	//after set main_test.go
 	arg := CreateUserParams{
 		Username: utils.RandomOwner(),
-		HashedPassword: "secret",
+		HashedPassword: hashedPassword,
 		FullName: utils.RandomOwner(),
 		Email: utils.RandomEmail(),
 	}
